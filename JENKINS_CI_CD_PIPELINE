@@ -1,0 +1,76 @@
+@Library('basepipline') _
+
+emailBreaks ( 'email group ') {
+    node('docker') {
+
+        buildInDocker('docker.org.com/openjdk-docker:11-python3') {
+
+            p4Workspace 'path of code repo'                             // Working with Perfroce can substitue using git if required.
+
+            stage('Build Java and Static Analysis') {
+
+                sh "./gradlew clean build check -PextraChecks"
+
+                junit '**/build/test-results/test/*.xml'
+
+                step([$class: 'FindBugsPublisher', pattern: 'build/reports/spotbugs/*.xml'])
+
+                step([$class: 'JacocoPublisher',
+
+                        classPattern: 'build/classes/java/main',
+
+                        exclusionPattern: '**/Application*.class',
+
+                         minimumBranchCoverage: '85',
+
+                         changeBuildStatus: true
+
+                         ])
+
+                deptrackUpload projectName: imageName
+
+                sh "./gradlew -x test -x build  sonarqube"
+
+            }
+			
+			stage('Build Docker Image') {
+
+            image = buildDocker imageName, 'Dockerfile'
+			}
+
+			}
+        } 
+
+			docker.image(image).inside {
+
+			stages("Test execution ") {
+
+			 stage("FUNCTIONAL test exeuction ") {
+
+			    sh  "./FUNCTINOAL_SCRIPTS"
+			}
+
+			stage("ROBUST test execution") {
+
+			    sh  "./ROBUST_SCRIPTS"
+
+			}			
+
+			stage("PERFOMANCE test execution") {
+
+				sh  "./taurus_executor or JEMETER"
+
+			}
+
+		}
+
+ 	stages("Promote your Docker image") {
+
+			 stage(" QUALITY TAGGING") {
+
+				sh  "./sciprts to push your code to other ENVVIRONMENST"
+
+			}
+	}
+ }
+}
